@@ -47,6 +47,15 @@ git -C "${src}" checkout -q "${FORK_SHA}"
 # 0.8.0+rk3588.6588.g86dfc5f5-1~resolute
 upstream="$(sed -n "s/^ *version *: *'\\([0-9.]*\\)',\\?$/\\1/p" "${src}/meson.build" | head -1)"
 [[ -n ${upstream} ]] || die "could not read the libcamera version from meson.build"
+# libcamera builds the version it prints (cam, qcam, logs) with `git describe`.
+# The fork has no upstream tags, so without one it reads v0.0.0+<commits>. Tag
+# the commit that released this version, found by its subject. `git describe`
+# only counts annotated tags.
+if ! git -C "${src}" rev-parse -q --verify "refs/tags/v${upstream}" >/dev/null; then
+    released="$(git -C "${src}" log -1 --format=%H --grep="^libcamera v${upstream}\$")"
+    [[ -z ${released} ]] || git -C "${src}" -c user.name=build -c user.email=build@localhost \
+        tag -a -m "libcamera v${upstream}" "v${upstream}" "${released}"
+fi
 commits="$(git -C "${src}" rev-list --count HEAD)"
 short="$(git -C "${src}" rev-parse --short=8 HEAD)"
 version="${upstream}+rk3588.${commits}.g${short}-1~${codename}"

@@ -25,16 +25,20 @@ sudo apt install debhelper dh-dkms device-tree-compiler dpkg-dev gcc python3
 ./scripts/build-debs.sh          # -> build/debs/
 ```
 
-libcamera, on the Ubuntu release the image is for (the package links against
-that release's libraries):
+libcamera is built once per Ubuntu release, because the package links against
+that release's libraries. `libcamera/build-in-chroot.sh` does it in a throwaway
+chroot made from Ubuntu's own base image for the release (resolute or stonking),
+so it works from any arm64 host, installs the result in the chroot and checks
+that libcamera loads its signed `rkisp2` IPA module:
 
 ```sh
-./libcamera/build.sh             # -> build/libcamera/<release>/
+./libcamera/build-in-chroot.sh resolute   # -> build/libcamera/resolute/
+./libcamera/build-in-chroot.sh stonking   # -> build/libcamera/stonking/
 ```
 
-It needs libcamera's normal build dependencies (the same ones a plain meson
-build of the tree needs: meson, ninja, the GStreamer, Qt 6, SDL 2, libevent,
-GnuTLS, libyaml and Python development packages).
+It needs root (it uses `sudo`), network access, and `curl`. To build on a machine
+that already runs the target release and has libcamera's build dependencies, run
+`./libcamera/build.sh` instead.
 
 Overlay tests (need `gcc`, `dtc`, `fdtoverlay` and `python3`):
 
@@ -45,7 +49,7 @@ Overlay tests (need `gcc`, `dtc`, `fdtoverlay` and `python3`):
 ## Releasing
 
 ```sh
-./scripts/make-release.sh release build/debs build/libcamera/resolute
+./scripts/make-release.sh release build/debs build/libcamera/resolute build/libcamera/stonking
 ```
 
 collects the packages and a `SHA256SUMS` manifest. Publish them as the assets of
