@@ -87,7 +87,7 @@ build_deps=(
     python3 libpython3-dev python3-jinja2 python3-ply python3-yaml python3-pybind11
     libdrm-dev libdw-dev libevent-dev libgnutls28-dev libjpeg-dev liblttng-ust-dev
     libpisp-dev libsdl2-dev libtiff-dev libudev-dev libyaml-dev libyuv-dev
-    libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev qt6-base-dev
+    libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
 )
 
 echo "[+] Building in the ${release} chroot"

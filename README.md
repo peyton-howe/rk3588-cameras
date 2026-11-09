@@ -10,7 +10,7 @@ or a running system installs.
 |---|---|---|
 | `dkms/` | `rk3588-camera-dkms` | DKMS drivers: the `rkisp2` ISP, the `rkcif` capture driver, the Samsung DCPHY CSI receiver, and sensor drivers (`imx708`, `imx415` with a 2376 Mbps lane rate, `imx477`, `imx519`). `arch: all`; the modules are built on the device against its kernel |
 | `overlays/` | `rk3588-camera-overlays` | One `.dtbo` per board CSI port and per sensor, the ISP overlays, and `apply-overlays.sh`, which writes the selected cameras into the boot configuration (Raspberry Pi `dtoverlay` style). `arch: all` |
-| `libcamera/` | `libcamera0.8`, `libcamera0.8-qcam` | [libcamera](https://github.com/peyton-howe/libcamera) (branch `rkisp2-upstream`, pinned in `libcamera/source.conf`) with the RK3588 rkisp2 pipeline handler and IPA, and the tuning files for the supported sensors. Built per Ubuntu release |
+| `libcamera/` | `libcamera0.8` | [libcamera](https://github.com/peyton-howe/libcamera) (branch `rkisp2-upstream`, pinned in `libcamera/source.conf`) with the RK3588 rkisp2 pipeline handler and IPA, and the tuning files for the supported sensors. Built per Ubuntu release |
 | `docs/` | | Bring-up notes, and the findings behind the hangs and limits we have hit |
 
 Supported cameras, boards and ports are listed in the image builder's README

@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # Build the RK3588 libcamera .debs from the fork pinned in source.conf.
 #
-# Builds libcamera with meson and packages it as:
-#   libcamera0.8         the library, the IPA modules and tuning files, cam,
-#                        libcamerify, the GStreamer plugin and Python bindings
-#   libcamera0.8-qcam    qcam, the Qt viewer (desktop images only)
-# The package name follows the soname, which follows libcamera's major.minor.
-# The packages link against this release's libraries, so build on the Ubuntu
+# Builds libcamera with meson and packages it as libcamera0.8: the library, the
+# IPA modules and tuning files, cam, libcamerify, the GStreamer plugin and the
+# Python bindings. (qcam, the Qt viewer, is not built.) The package name
+# follows the soname, which follows libcamera's major.minor.
+# The package links against this release's libraries, so build on the Ubuntu
 # release the image is for.
 #
 # Needs git, meson, ninja, dpkg-dev and libcamera's build dependencies (the
@@ -56,7 +55,7 @@ meson setup "${work}/build" "${src}" \
     --prefix=/usr --libdir="lib/${multiarch}" --buildtype=release \
     -Dwerror=false -Dtest=false -Ddocumentation=disabled \
     -Dpipelines=rkisp2,simple,uvcvideo -Dipas=rkisp2,softisp \
-    -Dcam=enabled -Dqcam=enabled -Dlc-compliance=enabled \
+    -Dcam=enabled -Dqcam=disabled -Dlc-compliance=enabled \
     -Dgstreamer=enabled -Dpycamera=enabled -Dv4l2=enabled \
     -Dpython.platlibdir=lib/python3/dist-packages \
     -Dpython.purelibdir=lib/python3/dist-packages
@@ -69,17 +68,6 @@ meson install -C "${work}/build" --destdir "${stage}" --strip >/dev/null
 rm -rf "${stage}/usr/include" "${stage}/usr/lib/${multiarch}/pkgconfig"
 find "${stage}/usr/lib/${multiarch}" -maxdepth 1 -name '*.so' -type l -delete
 find "${stage}/usr/lib/python3" -name __pycache__ -type d -prune -exec rm -rf {} +
-
-# Split qcam out.
-qcam_stage="${work}/qcam"
-mkdir -p "${qcam_stage}/usr/bin"
-mv "${stage}/usr/bin/qcam" "${qcam_stage}/usr/bin/"
-for f in "${stage}"/usr/share/applications/*qcam* "${stage}"/usr/share/icons/hicolor/*/apps/*qcam*; do
-    [[ -e ${f} ]] || continue
-    rel="${f#"${stage}"/}"
-    mkdir -p "${qcam_stage}/$(dirname "${rel}")"
-    mv "${f}" "${qcam_stage}/${rel}"
-done
 
 # Dependencies from the shared libraries each package links. libcamera's own
 # libraries come from the same package, so tell dpkg-shlibdeps about them.
@@ -95,8 +83,8 @@ deps_for() {
     while IFS= read -r f; do
         if [[ $(head -c4 "${f}" | od -An -c | tr -d ' ') == '177ELF' ]]; then elfs+=("-e${f}"); fi
     done < <(find "${root}" -type f \( -perm -u+x -o -name '*.so*' \) ! -type l)
-    # Drop dependencies on libcamera's own package (a package cannot depend on
-    # itself, and the qcam package adds its own exact one).
+    # Drop dependencies on libcamera's own package: a package cannot depend on
+    # itself.
     (cd "${tmp}" && dpkg-shlibdeps -O "-l${stage}/usr/lib/${multiarch}" "${elfs[@]}" 2>/dev/null) \
         | sed -n 's/^shlibs:Depends=//p' | tr ',' '\n' | sed 's/^ *//' \
         | grep -v "^${lib_pkg} " | paste -sd, | sed 's/,/, /g'
@@ -104,7 +92,6 @@ deps_for() {
 
 python_ver="$(find "${stage}/usr/lib/python3" -name '_libcamera*.so' | sed -n 's/.*cpython-\([0-9]\)\([0-9]*\)-.*/\1.\2/p' | head -1)"
 runtime_deps="$(deps_for "${stage}")"
-qcam_deps="$(deps_for "${qcam_stage}")"
 if [[ -n ${python_ver} ]]; then
     runtime_deps+="${runtime_deps:+, }python3 (>= ${python_ver}), python3 (<< ${python_ver%.*}.$((${python_ver#*.} + 1)))"
 fi
@@ -137,11 +124,9 @@ write_deb() { # name, root, depends, description, conflicts
 }
 
 # A rebuild of the same version replaces the old files.
-rm -f "${OUT_DIR}/${lib_pkg}_"*.deb "${OUT_DIR}/${lib_pkg}-qcam_"*.deb
+rm -f "${OUT_DIR}/${lib_pkg}_"*.deb
 write_deb "${lib_pkg}" "${stage}" "${runtime_deps}" \
     "libcamera with the RK3588 rkisp2 pipeline handler" "${ubuntu_set}"
-write_deb "${lib_pkg}-qcam" "${qcam_stage}" "${lib_pkg} (= ${version})${qcam_deps:+, ${qcam_deps}}" \
-    "qcam, the libcamera Qt viewer" "qcam, libcamera-tools"
 
 echo "[+] Built:"
 ls -l "${OUT_DIR}"/*.deb
