@@ -1,4 +1,4 @@
-# rk3588-camera
+# rk3588-cameras
 
 Camera support for the Rockchip RK3588 on stock Ubuntu kernels: out-of-tree
 kernel drivers, device-tree overlays, and libcamera with the rkisp2 pipeline
