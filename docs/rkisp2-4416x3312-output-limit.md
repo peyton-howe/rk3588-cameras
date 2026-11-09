@@ -37,7 +37,7 @@ not an RK3588 limit. It appears in two places we control:
 
 | Where | What | Effect |
 |---|---|---|
-| kernel, [rkisp2-common.h](../packages/rk3588-camera-dkms/src/rkisp2/rkisp2-common.h) | `RKISP2_RSZ_MP_SRC_MAX_WIDTH/HEIGHT` = 4416 / 3312 | caps the main-path capture node's output size |
+| kernel, [rkisp2-common.h](../dkms/src/rkisp2/rkisp2-common.h) | `RKISP2_RSZ_MP_SRC_MAX_WIDTH/HEIGHT` = 4416 / 3312 | caps the main-path capture node's output size |
 | libcamera, `src/libcamera/pipeline/rkisp2/rkisp2.cpp:47` | `ispMaxSize = Size(4416, 3312)` | caps the output size **and** is passed as the maximum when choosing a sensor mode, so the 4608-wide mode is never selected for a processed stream |
 
 The ISP's input limit in the same kernel driver is correct:

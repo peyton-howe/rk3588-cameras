@@ -4,8 +4,8 @@
 set -euo pipefail
 
 cd "$(dirname -- "$(readlink -f -- "$0")")"
-ROOT="$(cd ../../.. && pwd)"
-PKG="${ROOT}/packages/rk3588-camera-overlays"
+ROOT="$(cd ../.. && pwd)"
+PKG="${ROOT}/overlays"
 WORK="$(mktemp -d)"
 trap 'rm -rf "${WORK}"' EXIT
 
