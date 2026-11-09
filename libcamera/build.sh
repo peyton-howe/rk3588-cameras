@@ -54,7 +54,7 @@ echo "[+] Building ${lib_pkg} ${version} on ${codename}"
 meson setup "${work}/build" "${src}" \
     --prefix=/usr --libdir="lib/${multiarch}" --buildtype=release \
     -Dwerror=false -Dtest=false -Ddocumentation=disabled \
-    -Dpipelines=rkisp2,simple,uvcvideo -Dipas=rkisp2,simple \
+    -Dpipelines=rkisp2,simple,uvcvideo -Dipas=rkisp2,softisp \
     -Dcam=enabled -Dqcam=enabled -Dlc-compliance=enabled \
     -Dgstreamer=enabled -Dpycamera=enabled -Dv4l2=enabled \
     -Dpython.platlibdir=lib/python3/dist-packages \
