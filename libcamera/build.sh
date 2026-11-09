@@ -42,12 +42,14 @@ git clone -q --filter=blob:none --no-checkout "${FORK_URL}" "${src}"
 git -C "${src}" checkout -q "${FORK_SHA}"
 
 # The fork has no upstream tags, so take the version from meson.build and use
-# the commit count to keep builds ordered: 0.8.0+rk3588.6588.g86dfc5f5-1
+# the commit count to keep builds ordered, and add the release so the packages
+# built on different releases have different file names:
+# 0.8.0+rk3588.6588.g86dfc5f5-1~resolute
 upstream="$(sed -n "s/^ *version *: *'\\([0-9.]*\\)',\\?$/\\1/p" "${src}/meson.build" | head -1)"
 [[ -n ${upstream} ]] || die "could not read the libcamera version from meson.build"
 commits="$(git -C "${src}" rev-list --count HEAD)"
 short="$(git -C "${src}" rev-parse --short=8 HEAD)"
-version="${upstream}+rk3588.${commits}.g${short}-1"
+version="${upstream}+rk3588.${commits}.g${short}-1~${codename}"
 lib_pkg="libcamera${upstream%.*}"
 echo "[+] Building ${lib_pkg} ${version} on ${codename}"
 
