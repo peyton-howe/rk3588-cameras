@@ -36,7 +36,7 @@ and freed the buffers and the dummy buffer while the DMA could still be
 writing. The frame-end interrupt handler also took the subdev state mutex.
 
 The package now ships its own copy of the driver
-([src/rkcif](../packages/rk3588-camera-dkms/src/rkcif), imported unchanged in
+([src/rkcif](../dkms/src/rkcif), imported unchanged in
 `7e77b54`) and DKMS installs it under `updates/dkms`, which depmod searches
 before the in-tree module. The fix in `1790857`:
 
@@ -56,7 +56,7 @@ more clean starts. It did not remove all hangs (see fix 2).
 
 What was left after fix 1 was a silent hang at the start of a stream after an
 earlier one had stopped. It comes from the hardware reset in
-`rkcif_runtime_suspend()` ([rkcif-dev.c](../packages/rk3588-camera-dkms/src/rkcif/rkcif-dev.c)):
+`rkcif_runtime_suspend()` ([rkcif-dev.c](../dkms/src/rkcif/rkcif-dev.c)):
 it pulses the CIF reset line (CRU reset: DMA, FIFOs, AXI interface, and the
 IOMMU too) every time the device suspends, i.e. after every stream.
 
@@ -74,7 +74,7 @@ The change that was tested:
   that interface is still streaming, write `0x000A0000` (bits 19 and 17) to the
   interface's `RKCIF_MIPI_CTRL` register and wait 10 to 20 us
   (`rkcif_mipi_soft_reset()` in
-  [rkcif-capture-mipi.c](../packages/rk3588-camera-dkms/src/rkcif/rkcif-capture-mipi.c)).
+  [rkcif-capture-mipi.c](../dkms/src/rkcif/rkcif-capture-mipi.c)).
 
 The soft reset is still needed. Without any reset between streams the DMA
 keeps the previous stream's frame address. If the buffer layout then changes
