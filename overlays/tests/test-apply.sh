@@ -17,7 +17,7 @@ compile_dtso() {
 }
 
 dtc -@ -I dts -O dtb -o "${WORK}/stub.dtb" stub-base.dts
-for src in "${PKG}/dts/"*.dtso; do
+for src in "${PKG}/dts/"*.dtso "${PKG}/tests/ports/"*.dtso; do
     base="$(basename "${src}" .dtso)"
     compile_dtso "${src}" "${WORK}/${base}.dtbo"
 done
@@ -325,7 +325,7 @@ PY
 # apply-overlays.sh: board detection, port selection, parameter file name.
 FAKE="${WORK}/root"
 mkdir -p "${FAKE}/usr/share/rk3588-camera/overlays" \
-    "${FAKE}/usr/share/rk3588-board-rock-5b-plus" \
+    "${FAKE}/usr/share/rk3588-camera/boards" \
     "${FAKE}/usr/lib/rk3588-camera" \
     "${FAKE}/etc/rk3588-camera" \
     "${FAKE}/etc/default"
@@ -334,6 +334,9 @@ cp "${WORK}/"*.dtbo "${FAKE}/usr/share/rk3588-camera/overlays/"
 rm -f "${FAKE}/usr/share/rk3588-camera/overlays/imx708-port"*.dtbo \
     "${FAKE}/usr/share/rk3588-camera/overlays/imx219-port"*.dtbo
 cp "${PKG}/scripts/resolve-overlay.py" "${FAKE}/usr/lib/rk3588-camera/"
+# What a board package installs: a marker beside its port overlays.
+printf 'name=rock-5b-plus\nprefix=rk3588-rock-5b-plus\nports=0 1\n' \
+    > "${FAKE}/usr/share/rk3588-camera/boards/rock-5b-plus.conf"
 printf 'U_BOOT_FDT_OVERLAYS="/lib/firmware/panthor.dtbo /usr/share/rk3588-camera/overlays/old.dtbo /lib/firmware/rk3588-rock-5b-plus-imx708-cam0-isp.dtbo /lib/firmware/rk3588-rock-5b-plus-imx708-cam0-isp-custom.dtbo"\n' \
     > "${FAKE}/etc/default/u-boot"
 # old.dtbo is not in OVERLAY_DIR, so it must be kept. panthor too.
@@ -347,7 +350,7 @@ RK3588_U_BOOT_DEFAULT="${FAKE}/etc/default/u-boot" \
 RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
 RK3588_CAMERA_GEN_DIR="${FAKE}/var/lib/rk3588-camera" \
 RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-RK3588_BOARD_SHARE="${FAKE}/usr/share" \
+RK3588_CAMERA_BOARDS_DIR="${FAKE}/usr/share/rk3588-camera/boards" \
     bash "${PKG}/scripts/apply-overlays.sh"
 
 grep -q 'panthor.dtbo' "${FAKE}/etc/default/u-boot"
@@ -386,7 +389,7 @@ RK3588_U_BOOT_DEFAULT="${FAKE}/etc/default/u-boot" \
 RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
 RK3588_CAMERA_GEN_DIR="${FAKE}/var/lib/rk3588-camera" \
 RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-RK3588_BOARD_SHARE="${FAKE}/usr/share" \
+RK3588_CAMERA_BOARDS_DIR="${FAKE}/usr/share/rk3588-camera/boards" \
     bash "${PKG}/scripts/apply-overlays.sh"
 grep -q 'imx415-port0-link-1188000000-clk-37125000-isp0.dtbo' "${FAKE}/etc/default/u-boot"
 test -f "${FAKE}/var/lib/rk3588-camera/imx415-port0-link-1188000000-clk-37125000-isp0.dtbo"
@@ -402,7 +405,7 @@ for addr_case in 0x37:0x37 0X37:0x37 55:0x37 055:0x37 008:0x8 003:0x3 0119:0x77;
     RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
     RK3588_CAMERA_GEN_DIR="${FAKE}/var/lib/rk3588-camera" \
     RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-    RK3588_BOARD_SHARE="${FAKE}/usr/share" \
+    RK3588_CAMERA_BOARDS_DIR="${FAKE}/usr/share/rk3588-camera/boards" \
         bash "${PKG}/scripts/apply-overlays.sh"
     generated="${FAKE}/var/lib/rk3588-camera/imx415-port0-addr-${expected_addr}-isp0.dtbo"
     grep -Fq "${generated}" "${FAKE}/etc/default/u-boot"
@@ -417,7 +420,7 @@ for addr in 0x80 000 002 0120; do
     RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
     RK3588_CAMERA_GEN_DIR="${FAKE}/var/lib/rk3588-camera" \
     RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-    RK3588_BOARD_SHARE="${FAKE}/usr/share" \
+    RK3588_CAMERA_BOARDS_DIR="${FAKE}/usr/share/rk3588-camera/boards" \
         bash "${PKG}/scripts/apply-overlays.sh" >"${WORK}/bad-addr.out" 2>&1
     status=$?
     set -e
@@ -436,7 +439,7 @@ RK3588_U_BOOT_DEFAULT="${FAKE}/etc/default/u-boot" \
 RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
 RK3588_CAMERA_GEN_DIR="${FAKE}/var/lib/rk3588-camera" \
 RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-RK3588_BOARD_SHARE="${FAKE}/usr/share" \
+RK3588_CAMERA_BOARDS_DIR="${FAKE}/usr/share/rk3588-camera/boards" \
     bash "${PKG}/scripts/apply-overlays.sh" >"${WORK}/bad.out" 2>&1
 status=$?
 set -e
@@ -454,7 +457,7 @@ RK3588_U_BOOT_DEFAULT="${FAKE}/etc/default/u-boot" \
 RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
 RK3588_CAMERA_GEN_DIR="${FAKE}/var/lib/rk3588-camera" \
 RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-RK3588_BOARD_SHARE="${FAKE}/usr/share" \
+RK3588_CAMERA_BOARDS_DIR="${FAKE}/usr/share/rk3588-camera/boards" \
     bash "${PKG}/scripts/apply-overlays.sh" >"${WORK}/isp.out" 2>&1
 status=$?
 set -e
@@ -472,7 +475,7 @@ RK3588_U_BOOT_DEFAULT="${FAKE}/etc/default/u-boot" \
 RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
 RK3588_CAMERA_GEN_DIR="${FAKE}/var/lib/rk3588-camera" \
 RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-RK3588_BOARD_SHARE="${FAKE}/usr/share" \
+RK3588_CAMERA_BOARDS_DIR="${FAKE}/usr/share/rk3588-camera/boards" \
     bash "${PKG}/scripts/apply-overlays.sh" >"${WORK}/invalid-isp.out" 2>&1
 status=$?
 set -e
@@ -489,7 +492,7 @@ RK3588_U_BOOT_DEFAULT="${FAKE}/etc/default/u-boot" \
 RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
 RK3588_CAMERA_GEN_DIR="${FAKE}/var/lib/rk3588-camera" \
 RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-RK3588_BOARD_SHARE="${FAKE}/usr/share" \
+RK3588_CAMERA_BOARDS_DIR="${FAKE}/usr/share/rk3588-camera/boards" \
     bash "${PKG}/scripts/apply-overlays.sh"
 grep -q 'imx708-port0-isp1.dtbo' "${FAKE}/etc/default/u-boot"
 grep -q 'imx708-port1-isp0.dtbo' "${FAKE}/etc/default/u-boot"
@@ -509,7 +512,7 @@ RK3588_U_BOOT_DEFAULT="${FAKE}/etc/default/u-boot" \
 RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
 RK3588_CAMERA_GEN_DIR="${FAKE}/var/lib/rk3588-camera" \
 RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-RK3588_BOARD_SHARE="${FAKE}/usr/share" \
+RK3588_CAMERA_BOARDS_DIR="${FAKE}/usr/share/rk3588-camera/boards" \
     bash "${PKG}/scripts/apply-overlays.sh"
 grep -q 'imx708-port1-isp0.dtbo' "${FAKE}/etc/default/u-boot"
 grep -q 'imx708-port0-isp1.dtbo' "${FAKE}/etc/default/u-boot"
@@ -523,7 +526,7 @@ RK3588_U_BOOT_DEFAULT="${FAKE}/etc/default/u-boot" \
 RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
 RK3588_CAMERA_GEN_DIR="${FAKE}/var/lib/rk3588-camera" \
 RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-RK3588_BOARD_SHARE="${FAKE}/usr/share" \
+RK3588_CAMERA_BOARDS_DIR="${FAKE}/usr/share/rk3588-camera/boards" \
     bash "${PKG}/scripts/apply-overlays.sh"
 grep -q 'rk3588-isp-unite.dtbo' "${FAKE}/etc/default/u-boot"
 grep -q 'imx708-port0-4lane-unite.dtbo' "${FAKE}/etc/default/u-boot"
@@ -550,7 +553,7 @@ RK3588_U_BOOT_DEFAULT="${FAKE}/etc/default/u-boot" \
 RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
 RK3588_CAMERA_GEN_DIR="${FAKE}/var/lib/rk3588-camera" \
 RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-RK3588_BOARD_SHARE="${FAKE}/usr/share" \
+RK3588_CAMERA_BOARDS_DIR="${FAKE}/usr/share/rk3588-camera/boards" \
     bash "${PKG}/scripts/apply-overlays.sh"
 generated="${FAKE}/var/lib/rk3588-camera/imx415-port0-link-1188000000-clk-37125000-addr-0x37-unite.dtbo"
 grep -Fq "${generated}" "${FAKE}/etc/default/u-boot"
@@ -569,7 +572,7 @@ RK3588_U_BOOT_DEFAULT="${FAKE}/etc/default/u-boot" \
 RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
 RK3588_CAMERA_GEN_DIR="${FAKE}/var/lib/rk3588-camera" \
 RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-RK3588_BOARD_SHARE="${FAKE}/usr/share" \
+RK3588_CAMERA_BOARDS_DIR="${FAKE}/usr/share/rk3588-camera/boards" \
     bash "${PKG}/scripts/apply-overlays.sh" >"${WORK}/unite-two.out" 2>&1
 status=$?
 set -e
@@ -586,7 +589,7 @@ RK3588_U_BOOT_DEFAULT="${FAKE}/etc/default/u-boot" \
 RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
 RK3588_CAMERA_GEN_DIR="${FAKE}/var/lib/rk3588-camera" \
 RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-RK3588_BOARD_SHARE="${FAKE}/usr/share" \
+RK3588_CAMERA_BOARDS_DIR="${FAKE}/usr/share/rk3588-camera/boards" \
     bash "${PKG}/scripts/apply-overlays.sh" >"${WORK}/unite-isp.out" 2>&1
 status=$?
 set -e
@@ -594,30 +597,40 @@ test "${status}" -ne 0
 grep -q 'drop isp0' "${WORK}/unite-isp.out"
 cmp "${FAKE}/etc/default/u-boot" "${FAKE}/etc/default/u-boot.good"
 
-# Orange Pi 5 Max / 5 Plus / 5 Pro and ROCK 5A / 5B / 5C / 5 ITX: the board
-# package directory selects the port overlays, each board has its own set of
-# connectors, and the shorter orangepi-5 and rock-5b names must not take over.
+# Every board package ships a marker (name, prefix, ports) and its own port
+# overlays. The marker selects the port overlays, each board has its own set
+# of connectors, and a connector the board lacks is rejected. The port files
+# here are stand-ins: apply-overlays.sh only checks they exist.
 run_board() {
     local root="$1" conf="$2"
     RK3588_CAMERA_CONF="${conf}" \
     RK3588_U_BOOT_DEFAULT="${root}/etc/default/u-boot" \
-    RK3588_CAMERA_OVERLAY_DIR="${FAKE}/usr/share/rk3588-camera/overlays" \
+    RK3588_CAMERA_OVERLAY_DIR="${root}/usr/share/rk3588-camera/overlays" \
     RK3588_CAMERA_GEN_DIR="${root}/var/lib/rk3588-camera" \
     RK3588_CAMERA_RESOLVER="${FAKE}/usr/lib/rk3588-camera/resolve-overlay.py" \
-    RK3588_BOARD_SHARE="${root}/usr/share" \
+    RK3588_CAMERA_BOARDS_DIR="${root}/usr/share/rk3588-camera/boards" \
         bash "${PKG}/scripts/apply-overlays.sh"
 }
 for board_case in \
+    "orangepi-5:rk3588s-orangepi-5:1 2 3:0" \
     "orangepi-5-max:rk3588-orangepi-5-max:0 1 2:3" \
     "orangepi-5-plus:rk3588-orangepi-5-plus:1:2" \
     "orangepi-5-pro:rk3588s-orangepi-5-pro:1 2:3" \
     "rock-5a:rk3588s-rock-5a:0:1" \
     "rock-5b:rk3588-rock-5b:0:1" \
+    "rock-5b-plus:rk3588-rock-5b-plus:0 1:2" \
     "rock-5c:rk3588s-rock-5c:0:1" \
     "rock-5-itx:rk3588-rock-5-itx:0 1:2"; do
     IFS=: read -r bname bprefix bports bmissing <<< "${board_case}"
     broot="${WORK}/root-${bname}"
-    mkdir -p "${broot}/usr/share/rk3588-board-${bname}" "${broot}/etc/default" "${broot}/etc/rk3588-camera"
+    mkdir -p "${broot}/usr/share/rk3588-camera/boards" "${broot}/etc/default" "${broot}/etc/rk3588-camera"
+    cp -r "${FAKE}/usr/share/rk3588-camera/overlays" "${broot}/usr/share/rk3588-camera/overlays"
+    rm -f "${broot}/usr/share/rk3588-camera/overlays/"*-port[0-9].dtbo
+    printf 'name=%s\nprefix=%s\nports=%s\n' "${bname}" "${bprefix}" "${bports}" \
+        > "${broot}/usr/share/rk3588-camera/boards/${bname}.conf"
+    for port in ${bports}; do
+        : > "${broot}/usr/share/rk3588-camera/overlays/${bprefix}-port${port}.dtbo"
+    done
     : > "${broot}/etc/default/u-boot"
     # Several cameras, one per connector, each on its own ISP where there is one.
     specs=""
@@ -641,6 +654,21 @@ for board_case in \
     test "${status}" -ne 0
     grep -q "has no port${bmissing}" "${WORK}/bad-port.out"
 done
-echo "orange pi 5 max/plus/pro and radxa port selection passed"
+
+# Two installed boards: the choice must be explicit.
+mix="${WORK}/root-rock-5b-plus"
+printf 'name=rock-5b\nprefix=rk3588-rock-5b\nports=0\n' \
+    > "${mix}/usr/share/rk3588-camera/boards/rock-5b.conf"
+: > "${mix}/usr/share/rk3588-camera/overlays/rk3588-rock-5b-port0.dtbo"
+printf 'RK3588_CAMERA_OVERLAYS="imx708,port0"\n' > "${mix}/etc/rk3588-camera/overlays.conf"
+set +e
+run_board "${mix}" "${mix}/etc/rk3588-camera/overlays.conf" >"${WORK}/two-boards.out" 2>&1
+status=$?
+set -e
+test "${status}" -ne 0
+grep -q 'could not tell which board' "${WORK}/two-boards.out"
+RK3588_CAMERA_BOARD=rock-5b run_board "${mix}" "${mix}/etc/rk3588-camera/overlays.conf"
+grep -q '/rk3588-rock-5b-port0.dtbo' "${mix}/etc/default/u-boot"
+echo "board marker and port selection passed"
 
 echo "all camera overlay tests passed"

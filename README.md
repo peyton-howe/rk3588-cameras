@@ -9,7 +9,7 @@ or a running system installs.
 | Directory | Package | What it is |
 |---|---|---|
 | `dkms/` | `rk3588-camera-dkms` | DKMS drivers: the `rkisp2` ISP, the `rkcif` capture driver, the Samsung DCPHY CSI receiver, and sensor drivers (`imx708`, `imx415` with a 2376 Mbps lane rate, `imx477`, `imx519`). `arch: all`; the modules are built on the device against its kernel |
-| `overlays/` | `rk3588-camera-overlays` | One `.dtbo` per board CSI port and per sensor, the ISP overlays, and `apply-overlays.sh`, which writes the selected cameras into the boot configuration (Raspberry Pi `dtoverlay` style). `arch: all` |
+| `overlays/` | `rk3588-camera-overlays` | One `.dtbo` per sensor, the ISP overlays, and `apply-overlays.sh`, which writes the selected cameras into the boot configuration (Raspberry Pi `dtoverlay` style). `arch: all` |
 | `libcamera/` | `libcamera0.8` | [libcamera](https://github.com/peyton-howe/libcamera) (branch `rkisp2-upstream`, pinned in `libcamera/source.conf`) with the RK3588 rkisp2 pipeline handler and IPA, and the tuning files for the supported sensors. Built per Ubuntu release |
 | `docs/` | | Bring-up notes, and the findings behind the hangs and limits we have hit |
 
@@ -59,9 +59,10 @@ verify every package against it.
 ## Relationship to the image builder
 
 - The image builder's board packages build the base DTB for each board (with
-  `__symbols__`) that the port overlays here attach to, and `apply-overlays.sh`
-  recognises the board from the board package that is installed. A new board
-  therefore touches both repositories: its package there, its port overlays
-  here.
+  `__symbols__`) and ship that board's CSI port overlays, built against the
+  kernel's own `dt-bindings`, plus a marker
+  `/usr/share/rk3588-camera/boards/<name>.conf` (`name`, `prefix`, `ports`).
+  `apply-overlays.sh` reads the marker, so a new board only touches the image
+  builder. `overlays/tests/ports/` keeps a few port overlays as test fixtures.
 - The kernel patch series that the DKMS sources started from still lives in the
   image builder. The sources here are what is maintained now.
