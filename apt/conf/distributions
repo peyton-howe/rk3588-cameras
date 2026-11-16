@@ -1,0 +1,8 @@
+Origin: Tachyn Labs
+Label: Tachyn Labs
+Codename: stonking
+Suite: stonking
+Architectures: arm64
+Components: main
+Description: Tachyn Labs camera packages for Ubuntu 26.10
+SignWith: 8A0AD3A4CBAA5F39
