@@ -41,7 +41,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq --no-install-recommends \
-            debhelper dh-dkms dkms dpkg-dev device-tree-compiler gcc python3
+            build-essential fakeroot debhelper dh-dkms dkms dpkg-dev \
+            device-tree-compiler python3
       - name: Build
         run: ./scripts/build-debs.sh
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
