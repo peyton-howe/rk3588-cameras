@@ -23,7 +23,7 @@ UBOOT_DEFAULT=${RK3588_U_BOOT_DEFAULT:-/etc/default/u-boot}
 OVERLAY_DIR=${RK3588_CAMERA_OVERLAY_DIR:-/usr/share/rk3588-camera/overlays}
 GEN_DIR=${RK3588_CAMERA_GEN_DIR:-/var/lib/rk3588-camera}
 RESOLVER=${RK3588_CAMERA_RESOLVER:-/usr/lib/rk3588-camera/resolve-overlay.py}
-BOARD_SHARE=${RK3588_BOARD_SHARE:-/usr/share}
+BOARDS_DIR=${RK3588_CAMERA_BOARDS_DIR:-/usr/share/rk3588-camera/boards}
 
 if [[ ! -f ${CONF} ]]; then
     echo "No ${CONF}; nothing to apply"
@@ -42,65 +42,43 @@ is_uint() {
     [[ ${1:-} =~ ^[0-9]+$ ]]
 }
 
-board_prefix() {
-    case "${1}" in
-        orangepi-5|orangepi-5b) echo rk3588s-orangepi-5 ;;
-        orangepi-5-max) echo rk3588-orangepi-5-max ;;
-        orangepi-5-plus) echo rk3588-orangepi-5-plus ;;
-        orangepi-5-pro) echo rk3588s-orangepi-5-pro ;;
-        rock-5b-plus) echo rk3588-rock-5b-plus ;;
-        rock-5b) echo rk3588-rock-5b ;;
-        rock-5a) echo rk3588s-rock-5a ;;
-        rock-5c) echo rk3588s-rock-5c ;;
-        rock-5-itx) echo rk3588-rock-5-itx ;;
-        *) return 1 ;;
-    esac
-}
-
-detect_board() {
-    if [[ -n ${RK3588_CAMERA_BOARD:-} ]]; then
-        echo "${RK3588_CAMERA_BOARD}"
-        return 0
-    fi
-    local d base
-    # Exact directory names, so the shorter orangepi-5 cannot win by prefix.
-    for base in rk3588-board-orangepi-5b rk3588-board-orangepi-5-max \
-                rk3588-board-orangepi-5-plus rk3588-board-orangepi-5-pro \
-                rk3588-board-orangepi-5 rk3588-board-rock-5b-plus \
-                rk3588-board-rock-5b rk3588-board-rock-5a rk3588-board-rock-5c \
-                rk3588-board-rock-5-itx; do
-        d="${BOARD_SHARE}/${base}"
-        [[ -d ${d} ]] || continue
-        case "${base}" in
-            rk3588-board-orangepi-5b) echo orangepi-5b; return 0 ;;
-            rk3588-board-orangepi-5-max) echo orangepi-5-max; return 0 ;;
-            rk3588-board-orangepi-5-plus) echo orangepi-5-plus; return 0 ;;
-            rk3588-board-orangepi-5-pro) echo orangepi-5-pro; return 0 ;;
-            rk3588-board-orangepi-5) echo orangepi-5; return 0 ;;
-            rk3588-board-rock-5b-plus) echo rock-5b-plus; return 0 ;;
-            rk3588-board-rock-5b) echo rock-5b; return 0 ;;
-            rk3588-board-rock-5a) echo rock-5a; return 0 ;;
-            rk3588-board-rock-5c) echo rock-5c; return 0 ;;
-            rk3588-board-rock-5-itx) echo rock-5-itx; return 0 ;;
-        esac
+# Board packages install /usr/share/rk3588-camera/boards/<name>.conf next to
+# their port overlays:
+#   name=rock-5b-plus
+#   prefix=rk3588-rock-5b-plus    (port overlays are <prefix>-port<N>.dtbo)
+#   ports=0 1
+# Sets board, prefix and board_ports from the one installed board, or from the
+# one RK3588_CAMERA_BOARD names when several are installed.
+load_board() {
+    local f name want="${RK3588_CAMERA_BOARD:-}" key val
+    local -a found=()
+    shopt -s nullglob
+    for f in "${BOARDS_DIR}"/*.conf; do
+        name="$(basename "${f}" .conf)"
+        if [[ -n ${want} ]]; then
+            [[ ${name} == "${want}" ]] && found=("${f}")
+        else
+            found+=("${f}")
+        fi
     done
-    if [[ -r /proc/device-tree/model ]]; then
-        local model
-        model="$(tr -d '\0' < /proc/device-tree/model)"
-        case "${model}" in
-            *"Orange Pi 5B"*) echo orangepi-5b; return 0 ;;
-            *"Orange Pi 5 Max"*) echo orangepi-5-max; return 0 ;;
-            *"Orange Pi 5 Plus"*) echo orangepi-5-plus; return 0 ;;
-            *"Orange Pi 5 Pro"*) echo orangepi-5-pro; return 0 ;;
-            *"Orange Pi 5"*) echo orangepi-5; return 0 ;;
-            *"ROCK 5B+"*) echo rock-5b-plus; return 0 ;;
-            *"ROCK 5B"*) echo rock-5b; return 0 ;;
-            *"ROCK 5A"*) echo rock-5a; return 0 ;;
-            *"ROCK 5C"*) echo rock-5c; return 0 ;;
-            *"ROCK 5 ITX"*) echo rock-5-itx; return 0 ;;
-        esac
+    shopt -u nullglob
+    if [[ ${#found[@]} -ne 1 ]]; then
+        local names
+        names="$(cd "${BOARDS_DIR}" 2>/dev/null && ls ./*.conf 2>/dev/null | sed 's|^\./||; s|\.conf$||' | tr '\n' ' ')"
+        if [[ -n ${want} ]]; then
+            die "RK3588_CAMERA_BOARD '${want}' is not installed (installed boards: ${names:-none})"
+        fi
+        die "could not tell which board this is (installed boards: ${names:-none}). Install one rk3588-board-* package, or set RK3588_CAMERA_BOARD in ${CONF}."
     fi
-    return 1
+    board="$(basename "${found[0]}" .conf)"
+    prefix="" board_ports=""
+    while IFS='=' read -r key val; do
+        case "${key}" in
+            prefix) prefix="${val}" ;;
+            ports) board_ports="${val}" ;;
+        esac
+    done < "${found[0]}"
+    [[ -n ${prefix} ]] || die "${found[0]} has no prefix="
 }
 
 # spec is sensor,param,param... with no spaces (Pi dtoverlay syntax).
@@ -354,8 +332,7 @@ for ((i = 0; i < ${#sensors[@]}; i++)); do
 done
 
 if [[ ${need_board} -eq 1 ]]; then
-    board="$(detect_board)" || die "could not tell which board this is. Set RK3588_CAMERA_BOARD in ${CONF} to orangepi-5, orangepi-5b, orangepi-5-max, orangepi-5-plus, orangepi-5-pro, rock-5a, rock-5b, rock-5b-plus, rock-5c, or rock-5-itx."
-    prefix="$(board_prefix "${board}")" || die "unknown RK3588_CAMERA_BOARD '${board}'"
+    load_board
 fi
 
 if [[ -n ${RK3588_CAMERA_OVERLAYS:-} && ${#literals[@]} -eq 0 && ${#sensors[@]} -eq 0 ]]; then
@@ -379,7 +356,7 @@ if [[ ${need_board} -eq 1 ]]; then
         done
         port_file="${OVERLAY_DIR}/${prefix}-port${p}.dtbo"
         if [[ ! -f ${port_file} ]]; then
-            die "${board} has no port${p} (${port_file} is not installed). Orange Pi 5/5B connectors are port1, port2, and port3; Orange Pi 5 Max port0, port1, and port2; Orange Pi 5 Plus port1; Orange Pi 5 Pro port1 and port2. ROCK 5B+ and ROCK 5 ITX connectors are port0 and port1; ROCK 5A, 5B and 5C have port0."
+            die "${board} has no port${p} (${port_file} is not installed). Its ports: ${board_ports:-none}."
         fi
         if [[ ${already} -eq 0 ]]; then
             port_seen+=("${p}")
