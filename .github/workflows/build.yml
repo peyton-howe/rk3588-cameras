@@ -1,0 +1,210 @@
+name: Build and release
+
+# Every push and pull request builds all the packages. Pushing a tag such as
+# v0.1.0 also publishes them as a GitHub release, with a SHA256SUMS manifest
+# that ubuntu-image-builder pins.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+jobs:
+  test:
+    name: Overlay tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends device-tree-compiler gcc python3
+      - name: Resolver unit tests
+        run: python3 -m unittest discover -s overlays/tests -p 'test_*.py'
+      - name: Overlay apply tests
+        run: bash overlays/tests/test-apply.sh
+
+  debs:
+    name: rk3588-camera-dkms and rk3588-camera-overlays
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends \
+            build-essential fakeroot debhelper dh-dkms dkms dpkg-dev \
+            device-tree-compiler python3
+      - name: Build
+        run: ./scripts/build-debs.sh
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: debs
+          path: build/debs/*.deb
+          if-no-files-found: error
+
+  libcamera:
+    name: libcamera (${{ matrix.release }})
+    # The packages are arm64 and link against the release's own libraries, so
+    # each one is built in a chroot of that release on an arm64 runner.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        # resolute is added back after its LTS release.
+        release: [stonking]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build in a ${{ matrix.release }} chroot
+        env:
+          RELEASE: ${{ matrix.release }}
+        run: sudo ./libcamera/build-in-chroot.sh "${RELEASE}" "${GITHUB_WORKSPACE}/out/${RELEASE}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: libcamera-${{ matrix.release }}
+          path: out/${{ matrix.release }}/*.deb
+          if-no-files-found: error
+
+  release:
+    name: Publish the release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, debs, libcamera]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: debs
+          path: artifacts/debs
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: libcamera-*
+          path: artifacts/libcamera
+      - name: Collect the packages
+        run: |
+          ./scripts/make-release.sh release artifacts/debs artifacts/libcamera/*
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! [[ ${TAG} =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+              echo "Tag '${TAG}' is not vMAJOR.MINOR.PATCH" >&2
+              exit 1
+          fi
+          flags=(--verify-tag --generate-notes --title "${TAG}")
+          [[ ${TAG} == *-* ]] && flags+=(--prerelease)
+          gh release create "${TAG}" release/* "${flags[@]}"
+          {
+              echo "### ${TAG}"
+              echo
+              echo "Pin this in ubuntu-image-builder (scripts/camera-debs.conf):"
+              echo
+              echo '```'
+              echo "tag:    ${TAG}"
+              echo "sha256: $(sha256sum release/SHA256SUMS | cut -d' ' -f1)  (of SHA256SUMS)"
+              echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  publish-apt:
+    name: Publish to the apt repository
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [test, debs, libcamera]
+    runs-on: ubuntu-24.04
+    # Two runs must never write the repository at the same time.
+    concurrency:
+      group: apt-publish
+      cancel-in-progress: false
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      SUITE: stonking
+      SIGNING_KEY: 8A0AD3A4CBAA5F39
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: debs
+          path: debs
+      # libcamera is built per release; take the one for this suite.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: libcamera-stonking
+          path: debs
+
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq --no-install-recommends reprepro gnupg
+
+      - name: Import the signing key
+        env:
+          GPG_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          GPG_PASS: ${{ secrets.APT_GPG_PASSPHRASE }}
+        run: |
+          mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
+          echo "allow-preset-passphrase" >> ~/.gnupg/gpg-agent.conf
+          gpgconf --kill gpg-agent
+          printf '%s\n' "${GPG_KEY}" | gpg --batch --import
+          # Hand the passphrase to the agent so reprepro can sign without a prompt.
+          for grip in $(gpg --list-secret-keys --with-keygrip --with-colons | awk -F: '$1=="grp"{print $10}'); do
+              /usr/lib/gnupg/gpg-preset-passphrase --preset --passphrase "${GPG_PASS}" "${grip}"
+          done
+          # Fails here, not halfway through publishing, if signing would prompt.
+          echo test | gpg --batch --pinentry-mode error --local-user "${SIGNING_KEY}" --clearsign > /dev/null
+
+      - name: Pull the current repository from R2
+        run: |
+          mkdir -p repo
+          # The keyring object is published by hand and is not part of the working copy.
+          aws s3 sync s3://tachyn-downloads/apt/ repo/ --endpoint-url "${R2_ENDPOINT}" \
+              --exclude "tachyn-archive-keyring.gpg"
+          rm -rf repo/conf
+          cp -r apt/conf repo/conf
+
+      - name: Add the packages
+        id: add
+        run: ./scripts/apt-add-debs.sh repo "${SUITE}" debs/*.deb
+
+      - name: Verify the signature
+        if: steps.add.outputs.added != '0'
+        run: |
+          gpg --export "${SIGNING_KEY}" > "${RUNNER_TEMP}/archive.gpg"
+          gpgv --keyring "${RUNNER_TEMP}/archive.gpg" "repo/dists/${SUITE}/InRelease"
+
+      - name: Push the repository to R2
+        if: steps.add.outputs.added != '0'
+        run: |
+          # The pool first, then the indexes, so a client never sees an index that
+          # points at a file that is not there yet. No --delete at the top level of
+          # apt/: it would remove the keyring.
+          aws s3 sync repo/pool/  s3://tachyn-downloads/apt/pool/  --endpoint-url "${R2_ENDPOINT}"
+          aws s3 sync repo/db/    s3://tachyn-downloads/apt/db/    --endpoint-url "${R2_ENDPOINT}" --delete
+          aws s3 sync repo/dists/ s3://tachyn-downloads/apt/dists/ --endpoint-url "${R2_ENDPOINT}" --delete
+
+      - name: Summary
+        run: |
+          {
+              echo "### apt repository (${SUITE})"
+              echo
+              echo "Packages added: ${{ steps.add.outputs.added }}"
+              echo
+              echo '```'
+              echo "deb [signed-by=/usr/share/keyrings/tachyn.gpg] https://apt.tachynlabs.com ${SUITE} main"
+              echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"

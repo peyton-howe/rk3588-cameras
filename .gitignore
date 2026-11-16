@@ -10,3 +10,4 @@ __pycache__/
 */debian/*.substvars
 */debian/rk3588-camera-dkms/
 */debian/rk3588-camera-overlays/
+release/
